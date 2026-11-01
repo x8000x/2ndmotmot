@@ -1,1 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Happy Monthsary! | Love Pokéball</title>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<style>
+  :root { --pink:#ff5fa2; --deep:#d6246e; --purple:#7b2ff7; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; overscroll-behavior:none;
+    font-family:'Nunito',system-ui,sans-serif; color:#fff; -webkit-tap-highlight-color:transparent;
+    background: radial-gradient(circle at 50% 45%, #5a2a8f 0%, #2b1055 45%, #0f0c29 100%); }
+  #stage { position:fixed; inset:0; touch-action:none; }
+  #stage canvas { display:block; }
 
+  /* ---------- Header + hint ---------- */
+  .header { position:fixed; top:0; left:0; right:0; z-index:5; text-align:center; pointer-events:none;
+    padding: calc(env(safe-area-inset-top) + 14px) 14px 0; }
+  .header h1 { margin:0; font:700 clamp(1.8rem,6vw,3.2rem) 'Dancing Script',cursive; color:#ffd6e8;
+    text-shadow:0 3px 12px rgba(0,0,0,.55); }
+  .header p { display:inline-block; margin:6px 0 0; padding:5px 14px; font-size:clamp(.7rem,2.6vw,.85rem);
+    background:rgba(0,0,0,.35); border:1px solid rgba(255,130,190,.35); border-radius:99px; }
+  #hint { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 28px); transform:translateX(-50%);
+    z-index:5; padding:10px 22px; border-radius:99px; font-weight:800; font-size:clamp(.8rem,3vw,1rem);
+    background:rgba(214,36,110,.85); border:1px solid rgba(255,200,225,.5); pointer-events:none;
+    white-space:nowrap; transition:opacity .5s; animation:pulse 2s infinite ease-in-out; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 14px rgba(255,0,127,.7);transform:translateX(-50%) scale(1)}
+                     50%{box-shadow:0 0 26px rgba(255,0,127,1);transform:translateX(-50%) scale(1.05)} }
+
+  /* ---------- Card modal (desktop: centered, mobile: bottom sheet) ---------- */
+  #card { position:fixed; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+    padding:16px; pointer-events:none; opacity:0; transform:scale(.92); transition:opacity .6s, transform .6s; }
+  #card.show { opacity:1; transform:none; }
+  #card.show .panel { pointer-events:auto; }
+  .panel { position:relative; width:100%; max-width:460px; max-height:min(85dvh,85vh); display:flex; flex-direction:column;
+    padding:22px; border-radius:26px; color:#4a3350; background:rgba(255,255,255,.9);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border:2px solid rgba(255,182,193,.7); box-shadow:0 20px 50px rgba(0,0,0,.35), 0 0 30px rgba(255,105,180,.4); }
+  .panel .x { position:absolute; top:12px; right:12px; width:34px; height:34px; border:0; border-radius:50%;
+    background:#fff; color:var(--pink); font-size:18px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.15); }
+  .badge { display:inline-block; padding:3px 12px; border-radius:99px; background:#ffe3ef; color:var(--deep);
+    border:1px solid #ffc2da; font-size:.7rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+  .panel h2 { margin:8px 0 2px; font:700 clamp(1.9rem,7vw,2.5rem) 'Dancing Script',cursive; color:var(--deep); }
+  .sub { margin:0; font-size:.8rem; font-weight:700; color:var(--purple); }
+  .scroll { margin-top:12px; overflow-y:auto; flex:1; padding-right:4px; -webkit-overflow-scrolling:touch; }
+  .scroll::-webkit-scrollbar { width:6px } .scroll::-webkit-scrollbar-thumb { background:#ff69b4; border-radius:9px }
+  .photo { position:relative; height:clamp(140px,28dvh,230px); border-radius:18px; overflow:hidden; border:2px solid #ffc2da; }
+  .photo img { width:100%; height:100%; object-fit:cover; }
+  .photo span { position:absolute; left:10px; bottom:8px; font-size:.72rem; font-weight:700; color:#fff; text-shadow:0 1px 4px #000; }
+  .msg { margin-top:12px; padding:14px; border-radius:14px; background:rgba(255,255,255,.75); border:1px solid #ffd3e4; line-height:1.55; font-size:.95rem; }
+  .msg p { margin:0 0 .6em } .msg p:last-child { margin:0 }
+  .music { margin-top:12px; display:flex; align-items:center; gap:12px; padding:10px; border-radius:14px; background:#fff0f6; border:1px solid #ffc2da; }
+  .music button { width:40px; height:40px; border:0; border-radius:50%; background:var(--pink); color:#fff; font-size:16px; cursor:pointer; }
+  .music b { display:block; font-size:.78rem; color:var(--deep) } .music small { color:#8a7590; font-size:.7rem }
+  .replay { margin-top:14px; width:100%; padding:12px; border:0; border-radius:14px; cursor:pointer; color:#fff; font:800 .9rem 'Nunito',sans-serif;
+    background:linear-gradient(90deg,var(--pink),var(--purple)); box-shadow:0 6px 16px rgba(0,0,0,.25); }
+  .replay:active { transform:scale(.97) }
+  @media (max-width:600px) {
+    #card { align-items:flex-end; padding:0 }
+    .panel { max-width:none; max-height:62dvh; border-radius:26px 26px 0 0; padding:18px 18px calc(env(safe-area-inset-bottom) + 14px) }
+  }
+  @media (prefers-reduced-motion:reduce){ #hint{animation:none} }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div class="header">
+  <h1 id="ui-title"></h1>
+  <p>Drag to rotate · Pinch / scroll to zoom · Tap the heart to open</p>
+</div>
+<div id="hint">💗 Tap the heart latch!</div>
+
+<div id="card" aria-hidden="true">
+  <div class="panel" role="dialog" aria-label="Anniversary card">
+    <button class="x" id="btn-x" aria-label="Close card">✕</button>
+    <div><span class="badge" id="ui-badge"></span></div>
+    <h2 id="ui-heading"></h2>
+    <p class="sub" id="ui-sub"></p>
+    <div class="scroll">
+      <div class="photo"><img id="ui-photo" alt="Our memory"><span id="ui-caption"></span></div>
+      <div class="msg" id="ui-msg"></div>
+      <div class="music" id="ui-music">
+        <button id="btn-music" aria-label="Play or pause music">♪</button>
+        <div><b id="ui-song"></b><small id="ui-artist"></small></div>
+      </div>
+    </div>
+    <button class="replay" id="btn-replay">↺ Close Pokéball &amp; Replay</button>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   ★ CUSTOMIZE HERE — everything personal lives in this one object ★
+   ===================================================================== */
+const CONFIG = {
+  pageTitle:  "Happy Monthsary, My Love! ✨",   // big title at the top
+  badge:      "Special Catch",                  // small pill on the card
+  heading:    "To My Favorite Person",          // card heading
+  tagline:    "“I choose you! Today & every single day.”",
+
+  // PHOTO: paste a URL (https://...) or a relative file like "us.jpg" next to this html.
+  photoUrl:   "https://placehold.co/600x400/ffb6c1/ffffff?text=Our+Favorite+Memory",
+  photoCaption: "Our Special Moment",
+
+  // MESSAGE: each string is one paragraph. HTML allowed (e.g. <b>, <br>).
+  message: [
+    "Happy Monthsary, my sweetheart! 💕",
+    "I wanted to make something truly unique just for you. Thank you for filling my days with warmth, bright smiles, and endless happiness.",
+    "No matter how many adventures come our way, you will always be my absolute favorite catch. Here's to many more months together!"
+  ],
+
+  // MUSIC: URL or file path to an mp3/ogg. Leave "" to hide the player.
+  musicUrl:   "",
+  songTitle:  "Our Theme Song",
+  songArtist: "Tap to play",
+  musicVolume: 0.6,
+
+  // COLORS (hex)
+  colors: { lid:0xff8fc0, body:0xfdf8fb, band:0x241a2b, heart:0x7b2ff7, gold:0xffd24a, core:0xff2d8a, bgGlow:0xff69b4 }
+};
+
+/* ---------- Fill DOM from CONFIG ---------- */
+const $ = id => document.getElementById(id);
+$('ui-title').textContent   = CONFIG.pageTitle;
+$('ui-badge').textContent   = CONFIG.badge;
+$('ui-heading').textContent = CONFIG.heading;
+$('ui-sub').textContent     = CONFIG.tagline;
+$('ui-photo').src           = CONFIG.photoUrl;
+$('ui-caption').textContent = "📷 " + CONFIG.photoCaption;
+$('ui-msg').innerHTML       = CONFIG.message.map(p => `<p>${p}</p>`).join('');
+$('ui-song').textContent    = CONFIG.songTitle;
+$('ui-artist').textContent  = CONFIG.songArtist;
+document.title = CONFIG.pageTitle.replace('✨','').trim();
+
+/* ---------- Music (optional) ---------- */
+let bgm = null, musicOn = false;
+if (CONFIG.musicUrl) {
+  bgm = new Audio(CONFIG.musicUrl); bgm.loop = true; bgm.volume = CONFIG.musicVolume;
+} else { $('ui-music').style.display = 'none'; }
+function setMusic(on) {
+  if (!bgm) return;
+  musicOn = on;
+  on ? bgm.play().catch(() => { musicOn = false; }) : bgm.pause();
+  $('btn-music').textContent = musicOn ? '❚❚' : '♪';
+}
+$('btn-music').addEventListener('click', () => setMusic(!musicOn));
+
+/* =====================================================================
+   THREE.JS SCENE
+   ===================================================================== */
+const R = 1.8;                                   // ball radius
+const stage = $('stage');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 1.6, 7.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // cap for integrated GPUs
+renderer.outputEncoding = THREE.sRGBEncoding;
+stage.appendChild(renderer.domElement);                    // no shadow maps → very cheap
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+Object.assign(controls, { enableDamping:true, dampingFactor:0.07, minDistance:3.5, maxDistance:14,
+  maxPolarAngle:Math.PI*0.62, autoRotate:true, autoRotateSpeed:1.0, screenSpacePanning:true });
+controls.addEventListener('start', () => { controls.autoRotate = false; });
+
+/* ---------- Lights (4 total, no shadows) ---------- */
+scene.add(new THREE.HemisphereLight(0xfff4fa, 0x6b3fa0, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(4, 7, 5); scene.add(sun);
+const rim = new THREE.PointLight(CONFIG.colors.bgGlow, 1.4, 14); rim.position.set(-4, 2, -4); scene.add(rim);
+const innerGlow = new THREE.PointLight(0xff3d96, 0, 6); innerGlow.position.set(0, -0.2, 0); scene.add(innerGlow);
+
+/* ---------- Materials (all MeshStandard/Basic) ---------- */
+const mat = {
+  lid:   new THREE.MeshStandardMaterial({ color:CONFIG.colors.lid,  roughness:0.28, metalness:0.05, side:THREE.DoubleSide }),
+  body:  new THREE.MeshStandardMaterial({ color:CONFIG.colors.body, roughness:0.35, metalness:0.02, side:THREE.DoubleSide }),
+  band:  new THREE.MeshStandardMaterial({ color:CONFIG.colors.band, roughness:0.45, metalness:0.5 }),
+  heart: new THREE.MeshStandardMaterial({ color:CONFIG.colors.heart, roughness:0.3, metalness:0.25 }),
+  gold:  new THREE.MeshStandardMaterial({ color:CONFIG.colors.gold, roughness:0.28, metalness:0.85 }),
+  core:  new THREE.MeshStandardMaterial({ color:CONFIG.colors.core, emissive:CONFIG.colors.core, emissiveIntensity:0.45, roughness:0.2 }),
+  cushion: new THREE.MeshStandardMaterial({ color:0xff6fae, roughness:0.85 }),
+  paper: new THREE.MeshStandardMaterial({ color:0xfff3f8, roughness:0.6, side:THREE.DoubleSide }),
+  gloss: new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.5, depthWrite:false })
+};
+
+/* ---------- Heart shape helper (tip down, ~1 unit wide, centered) ---------- */
+function makeHeartShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.5);
+  s.bezierCurveTo(-0.15,-0.35, -0.5,-0.1, -0.5, 0.15);
+  s.bezierCurveTo(-0.5, 0.4, -0.2, 0.5, 0, 0.28);
+  s.bezierCurveTo( 0.2, 0.5,  0.5, 0.4, 0.5, 0.15);
+  s.bezierCurveTo( 0.5,-0.1,  0.15,-0.35, 0, -0.5);
+  return s;
+}
+const heartShape = makeHeartShape();
+const heartGeo = (depth, bevel) => {
+  const g = new THREE.ExtrudeGeometry(heartShape, { depth, bevelEnabled:true, bevelThickness:bevel, bevelSize:bevel, bevelSegments:3, curveSegments:16 });
+  g.center(); return g;
+};
+
+/* ---------- Ball assembly ---------- */
+const ball = new THREE.Group(); scene.add(ball);
+
+// Lower (white) half + interior
+const bodyMesh = new THREE.Mesh(new THREE.SphereGeometry(R, 48, 24, 0, Math.PI*2, Math.PI/2, Math.PI/2), mat.body);
+ball.add(bodyMesh);
+
+// Black equator band (stays on the body)
+const band = new THREE.Mesh(new THREE.TorusGeometry(R, 0.07, 12, 72), mat.band);
+band.rotation.x = Math.PI/2; ball.add(band);
+
+// Hinge: pivot sits at the back edge of the ball; lid group is offset back to the center
+const hinge = new THREE.Group(); hinge.position.set(0, 0, -R); ball.add(hinge);
+const lid = new THREE.Group(); lid.position.set(0, 0, R); hinge.add(lid);
+
+lid.add(new THREE.Mesh(new THREE.SphereGeometry(R, 48, 24, 0, Math.PI*2, 0, Math.PI/2), mat.lid));
+
+// Specular shine patch (flat-shaded gloss spot on upper-left)
+const gloss = new THREE.Mesh(
+  new THREE.SphereGeometry(R + 0.012, 16, 8, Math.PI*1.15, Math.PI*0.28, Math.PI*0.2, Math.PI*0.18), mat.gloss);
+lid.add(gloss);
+
+// Hinge barrel for a tidy back edge
+const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.7, 12), mat.band);
+barrel.rotation.z = Math.PI/2; barrel.position.set(0, 0, -R + 0.02); hinge.add(barrel);
+
+/* ---------- Heart latch (front of lid, straddles the seam) ---------- */
+const latch = new THREE.Group();
+latch.position.set(0, -0.12, R - 0.02);
+lid.add(latch);
+
+const latchBack = new THREE.Mesh(heartGeo(0.1, 0.035), mat.band);            // dark backing plate
+latchBack.scale.set(1.28, 1.28, 1); latchBack.position.z = 0.05; latch.add(latchBack);
+const latchHeart = new THREE.Mesh(heartGeo(0.12, 0.04), mat.heart);          // purple heart frame
+latchHeart.scale.set(1.05, 1.05, 1); latchHeart.position.z = 0.14; latch.add(latchHeart);
+const gold = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.045, 12, 32), mat.gold);   // gold ring
+gold.position.set(0, 0.06, 0.28); latch.add(gold);
+const core = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.1, 24), mat.core); // pink core button
+core.rotation.x = Math.PI/2; core.position.set(0, 0.06, 0.26); latch.add(core);
+const hitbox = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), new THREE.MeshBasicMaterial({ visible:false }));
+hitbox.position.set(0, 0.05, 0.2); latch.add(hitbox);                          // generous tap target
+
+/* ---------- Inner platform + floating 3D card ---------- */
+const platform = new THREE.Group(); platform.position.y = -1.0; ball.add(platform);
+const pBase = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.25, 0.18, 32), mat.body); platform.add(pBase);
+const pCush = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.14, 32), mat.cushion); pCush.position.y = 0.14; platform.add(pCush);
+
+const miniCard = new THREE.Group(); miniCard.position.y = 0.55; miniCard.scale.setScalar(0.001); platform.add(miniCard);
+miniCard.add(new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.03), mat.paper));
+const cardHeart = new THREE.Mesh(heartGeo(0.02, 0.01), mat.core); cardHeart.scale.setScalar(0.38); cardHeart.position.z = 0.03; miniCard.add(cardHeart);
+miniCard.rotation.x = -0.25;
+
+/* ---------- Heart-sprite particles (one draw call) ---------- */
+function heartTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.beginPath();
+  g.moveTo(32, 56); g.bezierCurveTo(4, 36, 6, 10, 24, 10); g.bezierCurveTo(30, 10, 32, 16, 32, 18);
+  g.bezierCurveTo(32, 16, 34, 10, 40, 10); g.bezierCurveTo(58, 10, 60, 36, 32, 56); g.fill();
+  return new THREE.CanvasTexture(c);
+}
+const PCOUNT = 90;
+const pPos = new Float32Array(PCOUNT * 3), pSpeed = new Float32Array(PCOUNT);
+const spawn = (i, anyY) => {
+  pPos[i*3]   = (Math.random() - 0.5) * 9;
+  pPos[i*3+1] = anyY ? Math.random()*6 - 2 : -2;
+  pPos[i*3+2] = (Math.random() - 0.5) * 9;
+  pSpeed[i]   = 0.2 + Math.random() * 0.4;
+};
+for (let i = 0; i < PCOUNT; i++) spawn(i, true);
+const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+const pMat = new THREE.PointsMaterial({ map:heartTexture(), color:0xffb3d4, size:0.28, transparent:true, opacity:0.85,
+  alphaTest:0.05, depthWrite:false, sizeAttenuation:true });
+const particles = new THREE.Points(pGeo, pMat); scene.add(particles);
+
+/* ---------- Baked blob shadow (no shadow maps) ---------- */
+const sc = document.createElement('canvas'); sc.width = sc.height = 128;
+const sg = sc.getContext('2d'), grad = sg.createRadialGradient(64,64,4,64,64,64);
+grad.addColorStop(0,'rgba(0,0,0,.55)'); grad.addColorStop(1,'rgba(0,0,0,0)');
+sg.fillStyle = grad; sg.fillRect(0,0,128,128);
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 5.2),
+  new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(sc), transparent:true, depthWrite:false }));
+shadow.rotation.x = -Math.PI/2; shadow.position.y = -R - 0.35; scene.add(shadow);
+
+/* =====================================================================
+   STATE, ANIMATION, INTERACTION
+   ===================================================================== */
+let isOpen = false, busy = false, audioCtx = null;
+const cardEl = $('card'), hintEl = $('hint');
+
+function chime() {                                   // tiny synthesized "click" — no audio file needed
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(523, t); o.frequency.exponentialRampToValueAtTime(1046, t + 0.18);
+    g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+    o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + 0.3);
+  } catch (e) {}
+}
+
+function showCard() {
+  cardEl.classList.add('show'); cardEl.setAttribute('aria-hidden', 'false');
+  confetti({ particleCount:90, spread:75, origin:{ y:0.55 }, colors:['#ff69b4','#ff2d8a','#ffd24a','#ffffff','#9b6bff'], disableForReducedMotion:true });
+}
+function hideCard() { cardEl.classList.remove('show'); cardEl.setAttribute('aria-hidden', 'true'); }
+
+function openBall() {
+  if (isOpen || busy) return;
+  busy = true; controls.autoRotate = false; hintEl.style.opacity = 0; chime();
+  gsap.timeline({ onComplete: () => { isOpen = true; busy = false; } })
+    .to(core.position, { z:0.2, duration:0.12, yoyo:true, repeat:1 })                       // button press
+    .to(mat.core, { emissiveIntensity:2, duration:0.25 }, 0)
+    .to(ball.position, { y:0.35, duration:0.25, ease:'power2.out' }, 0.1)                   // little hop
+    .to(ball.position, { y:0, duration:0.45, ease:'bounce.out' }, 0.35)
+    .to(hinge.rotation, { x:-1.95, duration:1.3, ease:'back.out(1.3)' }, 0.35)              // lid swings up & back
+    .to(innerGlow, { intensity:3.5, duration:0.8 }, 0.5)
+    .to(platform.position, { y:-0.35, duration:1.0, ease:'power2.out' }, 0.7)               // platform rises
+    .to(miniCard.scale, { x:1, y:1, z:1, duration:0.8, ease:'back.out(1.6)' }, 1.0)
+    .to(camera.position, { x:0, y:3.4, z:6.6, duration:1.4, ease:'power2.inOut' }, 0.4)
+    .add(showCard, 1.5);
+}
+
+function closeBall() {
+  if (!isOpen || busy) return;
+  busy = true; hideCard(); setMusic(false);
+  gsap.timeline({ onComplete: () => { isOpen = false; busy = false; hintEl.style.opacity = 1; controls.autoRotate = true; } })
+    .to(miniCard.scale, { x:0.001, y:0.001, z:0.001, duration:0.4 }, 0)
+    .to(platform.position, { y:-1.0, duration:0.6 }, 0.1)
+    .to(innerGlow, { intensity:0, duration:0.5 }, 0)
+    .to(mat.core, { emissiveIntensity:0.45, duration:0.5 }, 0)
+    .to(hinge.rotation, { x:0, duration:0.9, ease:'bounce.out' }, 0.3)
+    .to(camera.position, { x:0, y:1.6, z:7.5, duration:1.2,
