@@ -26,11 +26,14 @@
   .header p { display:inline-block; margin:6px 0 0; padding:5px 14px; font-size:clamp(.7rem,2.6vw,.85rem);
     background:rgba(0,0,0,.35); border:1px solid rgba(255,130,190,.35); border-radius:99px; }
   #hint { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 28px); transform:translateX(-50%);
-    z-index:5; padding:10px 22px; border-radius:99px; font-weight:800; font-size:clamp(.8rem,3vw,1rem);
+    z-index:5; padding:10px 22px; border-radius:99px; font:800 clamp(.8rem,3vw,1rem) 'Nunito',sans-serif; color:#fff;
     background:rgba(214,36,110,.85); border:1px solid rgba(255,200,225,.5); pointer-events:none;
     white-space:nowrap; transition:opacity .5s; animation:pulse 2s infinite ease-in-out; }
+  #hint.clickable { pointer-events:auto; cursor:pointer; }
   @keyframes pulse { 0%,100%{box-shadow:0 0 14px rgba(255,0,127,.7);transform:translateX(-50%) scale(1)}
                      50%{box-shadow:0 0 26px rgba(255,0,127,1);transform:translateX(-50%) scale(1.05)} }
+  #fallback { display:none; position:fixed; inset:0; z-index:20; align-items:center; justify-content:center;
+    padding:24px; text-align:center; font-size:1.1rem; }
 
   /* ---------- Card modal (desktop: centered, mobile: bottom sheet) ---------- */
   #card { position:fixed; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
@@ -70,6 +73,7 @@
 <body>
 
 <div id="stage"></div>
+<div id="fallback">Oops! Your browser couldn't start 3D graphics (WebGL). Try updating your browser or enabling hardware acceleration. 💗</div>
 
 <div class="header">
   <h1 id="ui-title"></h1>
@@ -147,7 +151,8 @@ if (CONFIG.musicUrl) {
 function setMusic(on) {
   if (!bgm) return;
   musicOn = on;
-  on ? bgm.play().catch(() => { musicOn = false; }) : bgm.pause();
+  if (on) bgm.play().catch(() => { musicOn = false; $('btn-music').textContent = '♪'; });
+  else bgm.pause();
   $('btn-music').textContent = musicOn ? '❚❚' : '♪';
 }
 $('btn-music').addEventListener('click', () => setMusic(!musicOn));
@@ -159,9 +164,16 @@ const R = 1.8;                                   // ball radius
 const stage = $('stage');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(0, 1.6, 7.5);
+const HOME_CAM = { x:0, y:1.6, z:7.5 };
+camera.position.set(HOME_CAM.x, HOME_CAM.y, HOME_CAM.z);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+} catch (err) {
+  $('fallback').style.display = 'flex';
+  throw err;
+}
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // cap for integrated GPUs
 renderer.outputEncoding = THREE.sRGBEncoding;
 stage.appendChild(renderer.domElement);                    // no shadow maps → very cheap
@@ -172,12 +184,12 @@ Object.assign(controls, { enableDamping:true, dampingFactor:0.07, minDistance:3.
 controls.addEventListener('start', () => { controls.autoRotate = false; });
 
 /* ---------- Lights (4 total, no shadows) ---------- */
-scene.add(new THREE.HemisphereLight(0xfff4fa, 0x6b3fa0, 0.85));
+scene.add(new THREE.HemisphereLight(0xfff4fa, 0x6b3fa0, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(4, 7, 5); scene.add(sun);
 const rim = new THREE.PointLight(CONFIG.colors.bgGlow, 1.4, 14); rim.position.set(-4, 2, -4); scene.add(rim);
 const innerGlow = new THREE.PointLight(0xff3d96, 0, 6); innerGlow.position.set(0, -0.2, 0); scene.add(innerGlow);
 
-/* ---------- Materials (all MeshStandard/Basic) ---------- */
+/* ---------- Materials ---------- */
 const mat = {
   lid:   new THREE.MeshStandardMaterial({ color:CONFIG.colors.lid,  roughness:0.28, metalness:0.05, side:THREE.DoubleSide }),
   body:  new THREE.MeshStandardMaterial({ color:CONFIG.colors.body, roughness:0.35, metalness:0.02, side:THREE.DoubleSide }),
@@ -187,7 +199,7 @@ const mat = {
   core:  new THREE.MeshStandardMaterial({ color:CONFIG.colors.core, emissive:CONFIG.colors.core, emissiveIntensity:0.45, roughness:0.2 }),
   cushion: new THREE.MeshStandardMaterial({ color:0xff6fae, roughness:0.85 }),
   paper: new THREE.MeshStandardMaterial({ color:0xfff3f8, roughness:0.6, side:THREE.DoubleSide }),
-  gloss: new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.5, depthWrite:false })
+  gloss: new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.45, depthWrite:false })
 };
 
 /* ---------- Heart shape helper (tip down, ~1 unit wide, centered) ---------- */
@@ -223,9 +235,9 @@ const lid = new THREE.Group(); lid.position.set(0, 0, R); hinge.add(lid);
 
 lid.add(new THREE.Mesh(new THREE.SphereGeometry(R, 48, 24, 0, Math.PI*2, 0, Math.PI/2), mat.lid));
 
-// Specular shine patch (flat-shaded gloss spot on upper-left)
+// Specular shine patch on the front-left of the lid
 const gloss = new THREE.Mesh(
-  new THREE.SphereGeometry(R + 0.012, 16, 8, Math.PI*1.15, Math.PI*0.28, Math.PI*0.2, Math.PI*0.18), mat.gloss);
+  new THREE.SphereGeometry(R + 0.012, 16, 8, Math.PI*0.18, Math.PI*0.28, Math.PI*0.2, Math.PI*0.18), mat.gloss);
 lid.add(gloss);
 
 // Hinge barrel for a tidy back edge
@@ -295,6 +307,12 @@ shadow.rotation.x = -Math.PI/2; shadow.position.y = -R - 0.35; scene.add(shadow)
 let isOpen = false, busy = false, audioCtx = null;
 const cardEl = $('card'), hintEl = $('hint');
 
+function setHint(text, clickable) {
+  hintEl.textContent = text;
+  hintEl.classList.toggle('clickable', !!clickable);
+  hintEl.style.opacity = text ? 1 : 0;
+}
+
 function chime() {                                   // tiny synthesized "click" — no audio file needed
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -307,13 +325,17 @@ function chime() {                                   // tiny synthesized "click"
 
 function showCard() {
   cardEl.classList.add('show'); cardEl.setAttribute('aria-hidden', 'false');
+  setHint('', false);
   confetti({ particleCount:90, spread:75, origin:{ y:0.55 }, colors:['#ff69b4','#ff2d8a','#ffd24a','#ffffff','#9b6bff'], disableForReducedMotion:true });
 }
-function hideCard() { cardEl.classList.remove('show'); cardEl.setAttribute('aria-hidden', 'true'); }
+function hideCard() {
+  cardEl.classList.remove('show'); cardEl.setAttribute('aria-hidden', 'true');
+  if (isOpen) setHint('💌 Read the card again', true);   // lets her reopen it after pressing ✕
+}
 
 function openBall() {
   if (isOpen || busy) return;
-  busy = true; controls.autoRotate = false; hintEl.style.opacity = 0; chime();
+  busy = true; controls.autoRotate = false; setHint('', false); chime();
   gsap.timeline({ onComplete: () => { isOpen = true; busy = false; } })
     .to(core.position, { z:0.2, duration:0.12, yoyo:true, repeat:1 })                       // button press
     .to(mat.core, { emissiveIntensity:2, duration:0.25 }, 0)
@@ -329,14 +351,18 @@ function openBall() {
 
 function closeBall() {
   if (!isOpen || busy) return;
-  busy = true; hideCard(); setMusic(false);
-  gsap.timeline({ onComplete: () => { isOpen = false; busy = false; hintEl.style.opacity = 1; controls.autoRotate = true; } })
+  busy = true; hideCard(); setMusic(false); setHint('', false);
+  gsap.timeline({ onComplete: () => {
+      isOpen = false; busy = false;
+      setHint('💗 Tap the heart latch!', false);
+      controls.autoRotate = true;
+    } })
     .to(miniCard.scale, { x:0.001, y:0.001, z:0.001, duration:0.4 }, 0)
     .to(platform.position, { y:-1.0, duration:0.6 }, 0.1)
     .to(innerGlow, { intensity:0, duration:0.5 }, 0)
     .to(mat.core, { emissiveIntensity:0.45, duration:0.5 }, 0)
     .to(hinge.rotation, { x:0, duration:0.9, ease:'bounce.out' }, 0.3)
-    .to(camera.position, { x:0, y:1.6, z:7.5, duration:1.2,
+    .to(camera.position, { x:HOME_CAM.x, y:HOME_CAM.y, z:HOME_CAM.z, duration:1.2, ease:'power2.inOut' }, 0.2);
 }
 
 /* ---------- Tap-vs-drag detection so rotating never opens the ball ---------- */
@@ -358,6 +384,7 @@ renderer.domElement.addEventListener('pointermove', e => {          // pointer c
 });
 $('btn-x').addEventListener('click', hideCard);
 $('btn-replay').addEventListener('click', closeBall);
+hintEl.addEventListener('click', () => { if (isOpen && !busy) showCard(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') hideCard(); });
 
 /* ---------- Resize (desktop + mobile/orientation) ---------- */
@@ -370,7 +397,7 @@ function resize() {
 }
 addEventListener('resize', resize); addEventListener('orientationchange', resize); resize();
 
-/* ---------- Render loop ---------- */
+/* ---------- Render loop (pauses when the tab is hidden) ---------- */
 const clock = new THREE.Clock(); let raf = 0;
 function tick() {
   raf = requestAnimationFrame(tick);
@@ -378,20 +405,24 @@ function tick() {
   if (!isOpen && !busy) ball.position.y = Math.sin(t * 1.8) * 0.07;           // idle float
   shadow.scale.setScalar(1 - ball.position.y * 0.15);
   if (isOpen) { miniCard.rotation.y = Math.sin(t) * 0.35; miniCard.position.y = 0.55 + Math.sin(t * 2) * 0.05; }
-  core.material.emissiveIntensity += 0;                                       // (animated by GSAP)
   for (let i = 0; i < PCOUNT; i++) { pPos[i*3+1] += pSpeed[i] * dt; if (pPos[i*3+1] > 4.5) spawn(i, false); }
   pGeo.attributes.position.needsUpdate = true;
   controls.update();
   renderer.render(scene, camera);
 }
 tick();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+  else if (!raf) { clock.getDelta(); tick(); }
+});
 
 /* ---------- Cleanup (frees GPU memory on page close) ---------- */
 addEventListener('pagehide', () => {
   cancelAnimationFrame(raf); gsap.killTweensOf('*'); controls.dispose();
   scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   Object.values(mat).forEach(m => m.dispose());
-  [pMat.map, pMat].forEach(x => x.dispose()); shadow.material.map.dispose(); shadow.material.dispose();
+  pMat.map.dispose(); pMat.dispose();
+  shadow.material.map.dispose(); shadow.material.dispose();
   renderer.dispose(); if (bgm) bgm.pause();
 });
 </script>
